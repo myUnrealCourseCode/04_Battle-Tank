@@ -1,6 +1,8 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #include "./Public/TankAimingComponent.h"
+#include "./Public/TankBarrel.h"
+#include "Runtime/Engine/Classes/Kismet/GameplayStatics.h"
 #include "Runtime/Engine/Classes/GameFramework/Actor.h"
 
 
@@ -15,26 +17,45 @@ UTankAimingComponent::UTankAimingComponent()
 }
 
 
-// Called when the game starts
-void UTankAimingComponent::BeginPlay()
-{
-	Super::BeginPlay();
+void UTankAimingComponent::SetBarrelReference(UTankBarrel * BarrelToSet) {
 
-	// ...
-	
+	Barrel = BarrelToSet;
 }
 
+void UTankAimingComponent::AimAt(FVector OutHitLocation, float LaunchSpeed) {
 
-// Called every frame
-void UTankAimingComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
-{
-	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	if (!Barrel) { return; }
 
+	FVector OutLaunchVelocity;
+	FVector StartLocation = Barrel->GetSocketLocation(FName("Projectile"));
 
+	bool bHaveAimSolution = UGameplayStatics::SuggestProjectileVelocity
+	(
+		this,
+		OutLaunchVelocity,
+		StartLocation,
+		OutHitLocation,
+		LaunchSpeed,
+		ESuggestProjVelocityTraceOption::DoNotTrace
+	);
+
+	// Calculate the OutLaunchVelocity
+	if (bHaveAimSolution) 
+	{
+		auto TankName = GetOwner()->GetName();
+		auto AimDirection = OutLaunchVelocity.GetSafeNormal();
+		//UE_LOG(LogTemp, Warning, TEXT("%s Aiming At %s"), *TankName, *AimDirection.ToString());
+
+		MoveBarrelTowards(AimDirection);
+	}
 }
 
-void UTankAimingComponent::AimAt(FVector OutHitLocation) {
+void UTankAimingComponent::MoveBarrelTowards(FVector AimDirection) {
 
-	auto TankName = GetOwner()->GetName();
-	UE_LOG(LogTemp, Warning, TEXT("%s aiming at %s"), *TankName, *OutHitLocation.ToString());
+	// Workout difference between current barrel rotation, and AimDirection
+	auto BarrelRotator = Barrel->GetForwardVector().Rotation();
+	auto AimAsRotator = AimDirection.Rotation();
+	auto DeltaRotator = AimAsRotator - BarrelRotator;
+
+	Barrel->Elevate(5); //TODO remove magic number
 }
